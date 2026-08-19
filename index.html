@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Clock</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+    --ink:        #0d0d0d;
+    --paper:      #f5f5f2;
+    --panel:      #1a1a1a;
+    --line:       rgba(245,245,242,.12);
+    --muted:      rgba(245,245,242,.42);
+
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 9px;
+
+    --ease: cubic-bezier(.4,0,.2,1);
+    --dur-fast: .18s;
+    --dur-med: .5s;
+
+    --font-display: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body{
+    height: 100%;
+}
+
+body{
+    font-family: var(--font-ui);
+    background: var(--ink);
+    color: var(--paper);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button{
+    font-family: inherit;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+}
+
+:focus-visible{
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.screen{
+    position: fixed;
+    inset: 0;
+    display: none;
+}
+
+.screen.is-active{
+    display: flex;
+}
+
+/* ============================================
+   Setup screen
+   ============================================ */
+#setup{
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    padding: 32px;
+    background: var(--ink);
+    color: var(--paper);
+}
+
+.setup-heading{
+    text-align: center;
+}
+
+.setup-heading .eyebrow{
+    display: block;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+}
+
+.setup-heading h1{
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 6vw, 2.8rem);
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+.time-controls{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 12px;
+    width: min(100%, 460px);
+}
+
+.tc-chip{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 14px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--paper);
+    transition: background var(--dur-fast) var(--ease),
+                color var(--dur-fast) var(--ease),
+                border-color var(--dur-fast) var(--ease),
+                transform var(--dur-fast) var(--ease);
+}
+
+.tc-chip:hover{
+    transform: translateY(-2px);
+    border-color: var(--paper);
+}
+
+.tc-chip .label{
+    font-weight: 600;
+    font-size: .95rem;
+}
+
+.tc-chip .sub{
+    font-size: .72rem;
+    color: var(--muted);
+}
+
+.tc-chip[aria-pressed="true"]{
+    background: var(--paper);
+    color: var(--ink);
+    border-color: var(--paper);
+}
+
+.tc-chip[aria-pressed="true"] .sub{
+    color: rgba(13,13,13,.6);
+}
+
+.custom-control{
+    width: min(100%, 460px);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color var(--dur-fast) var(--ease);
+}
+
+.custom-control.is-selected{
+    border-color: var(--paper);
+}
+
+.custom-control label{
+    font-size: .78rem;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.custom-field{
+    flex: 1;
+}
+
+.custom-field input{
+    width: 100%;
+    background: rgba(245,245,242,.06);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    color: var(--paper);
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    padding: 8px 10px;
+}
+
+#startBtn{
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: .01em;
+    padding: 16px 56px;
+    border-radius: var(--radius-lg);
+    transition: transform var(--dur-fast) var(--ease),
+                box-shadow var(--dur-fast) var(--ease);
+}
+
+#startBtn:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(245,245,242,.15);
+}
+
+#startBtn:active{
+    transform: translateY(0);
+}
+
+.clock-panel{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    position: relative;
+    transition: background-color var(--dur-med) var(--ease),
+                color var(--dur-med) var(--ease);
+}
+
+.clock-panel[data-player="white"]{
+    background: var(--paper);
+    color: var(--ink);
+}
+
+.clock-panel[data-player="black"]{
+    background: var(--ink);
+    color: var(--paper);
+}
+
+.player-label{
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    opacity: .55;
+}
+
+.time{
+    font-family: var(--font-display);
+    font-size: clamp(3.2rem, 18vw, 7.5rem);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+@keyframes lowTimePulse{
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .5; }
+}
+
+.clock-panel[data-low="true"][data-running="true"] .time{
+    animation: lowTimePulse 1s ease-in-out infinite;
+}
+
+.tap-hint{
+    position: absolute;
+    bottom: 44px;
+    font-size: .78rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    opacity: .38;
+}
+
+.controls-fixed{
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 3;
+}
+
+.icon-btn{
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: .7;
+    transition: opacity var(--dur-fast) var(--ease),
+                transform var(--dur-fast) var(--ease);
+}
+
+.icon-btn:hover{
+    opacity: 1;
+}
+
+.icon-btn:active{
+    transform: scale(.92);
+}
+
+.icon-btn svg{
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+#result{
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(13,13,13,.9);
+    backdrop-filter: blur(6px);
+    z-index: 10;
+}
+
+#result.is-active{
+    display: flex;
+}
+
+.result-card{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 40px 48px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    max-width: 90vw;
+    color: var(--paper);
+}
+
+.result-card .eyebrow{
+    font-size: .75rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.result-card h2{
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 5vw, 2.2rem);
+}
+
+.result-card button{
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 700;
+    padding: 14px 40px;
+    border-radius: var(--radius-md);
+    transition: transform var(--dur-fast) var(--ease);
+}
+
+.result-card button:hover{
+    transform: translateY(-2px);
+}
+
+.sr-only{
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+}
+
+@media (prefers-reduced-motion: reduce){
+    *{
+        animation-duration: .001ms !important;
+        transition-duration: .001ms !important;
+    }
+}
+</style>
+</head>
+<body>
+
+<section id="setup" class="screen is-active">
+    <div class="setup-heading">
+        <span class="eyebrow">Over the board</span>
+        <h1>Chess Clock</h1>
+    </div>
+
+    <div class="time-controls" id="timeControls" role="group" aria-label="Time control">
+        <button class="tc-chip" data-minutes="1" data-increment="0" aria-pressed="false">
+            <span class="label">1 min</span><span class="sub">Bullet</span>
+        </button>
+        <button class="tc-chip" data-minutes="3" data-increment="2" aria-pressed="false">
+            <span class="label">3 | 2</span><span class="sub">Blitz</span>
+        </button>
+        <button class="tc-chip" data-minutes="5" data-increment="0" aria-pressed="true">
+            <span class="label">5 min</span><span class="sub">Blitz</span>
+        </button>
+        <button class="tc-chip" data-minutes="10" data-increment="5" aria-pressed="false">
+            <span class="label">10 | 5</span><span class="sub">Rapid</span>
+        </button>
+        <button class="tc-chip" data-minutes="30" data-increment="20" aria-pressed="false">
+            <span class="label">30 | 20</span><span class="sub">Classical</span>
+        </button>
+        <button class="tc-chip" id="customChip" data-minutes="" data-increment="" aria-pressed="false">
+            <span class="label">Custom</span><span class="sub">Set your own</span>
+        </button>
+    </div>
+
+    <div class="custom-control" id="customControl">
+        <div class="custom-field">
+            <label for="customMinutes">Minutes per side</label>
+            <input type="number" id="customMinutes" min="1" max="180" value="15" inputmode="numeric">
+        </div>
+        <div class="custom-field">
+            <label for="customIncrement">Increment (sec)</label>
+            <input type="number" id="customIncrement" min="0" max="60" value="10" inputmode="numeric">
+        </div>
+    </div>
+
+    <button id="startBtn">Start game</button>
+</section>
+
+<section id="game" class="screen">
+    <div class="clock-panel" id="clockPanel" data-player="white" tabindex="0" role="button"
+         aria-label="Chess clock. Press when it is your turn to end the move.">
+        <span class="player-label" id="playerLabel">White to move</span>
+        <span class="time" id="timeDisplay">05:00</span>
+        <span class="tap-hint">Tap anywhere to pass the turn</span>
+
+        <div class="controls-fixed">
+            <button class="icon-btn" id="pauseBtn" aria-label="Pause">
+                <svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+            </button>
+            <button class="icon-btn" id="resetBtn" aria-label="New game">
+                <svg viewBox="0 0 24 24"><path d="M12 5V2L7 7l5 5V9a5 5 0 1 1-5 5H5a7 7 0 1 0 7-9z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="sr-only" role="status" aria-live="polite" id="liveRegion"></div>
+</section>
+
+<div id="result">
+    <div class="result-card">
+        <span class="eyebrow">Time</span>
+        <h2 id="resultText">White wins on time</h2>
+        <button id="newGameBtn">New game</button>
+    </div>
+</div>
+
+<script>
+(() => {
+    'use strict';
+
+    const setupScreen   = document.getElementById('setup');
+    const gameScreen    = document.getElementById('game');
+    const resultOverlay = document.getElementById('result');
+    const resultText    = document.getElementById('resultText');
+    const liveRegion    = document.getElementById('liveRegion');
+
+    const timeControls  = document.getElementById('timeControls');
+    const customChip    = document.getElementById('customChip');
+    const customControl = document.getElementById('customControl');
+    const customMinutes = document.getElementById('customMinutes');
+    const customIncrement = document.getElementById('customIncrement');
+    const startBtn      = document.getElementById('startBtn');
+
+    const clockPanel   = document.getElementById('clockPanel');
+    const playerLabel  = document.getElementById('playerLabel');
+    const timeDisplay  = document.getElementById('timeDisplay');
+    const pauseBtn     = document.getElementById('pauseBtn');
+    const resetBtn     = document.getElementById('resetBtn');
+    const newGameBtn   = document.getElementById('newGameBtn');
+
+    // ---------- State ----------
+    const LOW_TIME_MS = 20_000;
+
+    const state = {
+        minutes: 5,
+        incrementSec: 0,
+        remaining: { white: 0, black: 0 },
+        active: 'white',
+        started: false,
+        running: false,
+        lastTick: 0,
+        intervalId: null,
+    };
+
+    // ---------- Helpers ----------
+    function formatTime(ms){
+        const clamped = Math.max(ms, 0);
+        const totalSeconds = clamped / 1000;
+
+        if (clamped < LOW_TIME_MS){
+            const s = Math.floor(totalSeconds);
+            const tenths = Math.floor((totalSeconds - s) * 10);
+            return `0:${String(s).padStart(2,'0')}.${tenths}`;
+        }
+
+        const m = Math.floor(totalSeconds / 60);
+        const s = Math.floor(totalSeconds % 60);
+        return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function render(){
+        const player = state.active;
+        timeDisplay.textContent = formatTime(state.remaining[player]);
+        playerLabel.textContent = `${player === 'white' ? 'White' : 'Black'} to move`;
+
+        clockPanel.dataset.player = player;
+        clockPanel.dataset.low = state.remaining[player] < LOW_TIME_MS ? 'true' : 'false';
+        clockPanel.dataset.running = state.running ? 'true' : 'false';
+    }
+
+    function announce(message){
+        liveRegion.textContent = message;
+    }
+
+    // ---------- Setup screen ----------
+    let selectedMinutes = 5;
+    let selectedIncrement = 0;
+
+    function selectChip(chip){
+        document.querySelectorAll('.tc-chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+        customControl.classList.remove('is-selected');
+        chip.setAttribute('aria-pressed', 'true');
+
+        if (chip === customChip){
+            customControl.classList.add('is-selected');
+            selectedMinutes = Number(customMinutes.value) || 1;
+            selectedIncrement = Number(customIncrement.value) || 0;
+        } else {
+            selectedMinutes = Number(chip.dataset.minutes);
+            selectedIncrement = Number(chip.dataset.increment);
+        }
+    }
+
+    timeControls.addEventListener('click', (e) => {
+        const chip = e.target.closest('.tc-chip');
+        if (chip) selectChip(chip);
+    });
+
+    [customMinutes, customIncrement].forEach(input => {
+        input.addEventListener('input', () => {
+            if (customChip.getAttribute('aria-pressed') === 'true') selectChip(customChip);
+        });
+        input.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    function startGame(){
+        state.minutes = selectedMinutes;
+        state.incrementSec = selectedIncrement;
+        state.remaining.white = selectedMinutes * 60_000;
+        state.remaining.black = selectedMinutes * 60_000;
+        state.active = 'white';
+        state.started = false;
+        state.running = false;
+
+        render();
+
+        setupScreen.classList.remove('is-active');
+        resultOverlay.classList.remove('is-active');
+        gameScreen.classList.add('is-active');
+
+        pauseBtn.setAttribute('aria-label', 'Pause');
+        clockPanel.focus();
+    }
+
+    startBtn.addEventListener('click', startGame);
+
+    // ---------- Ticking ----------
+    function tick(){
+        if (!state.running) return;
+
+        const now = performance.now();
+        const elapsed = now - state.lastTick;
+        state.lastTick = now;
+
+        const player = state.active;
+        state.remaining[player] -= elapsed;
+
+        if (state.remaining[player] <= 0){
+            state.remaining[player] = 0;
+            render();
+            endGame(player === 'white' ? 'black' : 'white');
+            return;
+        }
+
+        render();
+    }
+
+    function startInterval(){
+        clearInterval(state.intervalId);
+        state.intervalId = setInterval(tick, 100);
+    }
+
+    // ---------- Turn switching ----------
+    function passTurn(){
+        if (!state.running) return;
+
+        const player = state.active;
+        state.remaining[player] += state.incrementSec * 1000;
+
+        state.active = player === 'white' ? 'black' : 'white';
+        state.lastTick = performance.now();
+
+        render();
+        announce(`${state.active === 'white' ? 'White' : 'Black'}'s turn`);
+    }
+
+    function handleTap(){
+        if (!state.started){
+            state.started = true;
+            state.running = true;
+            state.lastTick = performance.now();
+            render();
+            startInterval();
+            announce("White's turn");
+            return;
+        }
+        passTurn();
+    }
+
+    clockPanel.addEventListener('click', (e) => {
+        if (e.target.closest('.controls-fixed')) return; // don't pass turn when tapping pause/reset
+        handleTap();
+    });
+
+    clockPanel.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' || e.code === 'Enter'){
+            e.preventDefault();
+            handleTap();
+        }
+    });
+
+    // ---------- Pause / reset ----------
+    pauseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!state.started) return; // nothing to pause before the first move
+
+        state.running = !state.running;
+        pauseBtn.setAttribute('aria-label', state.running ? 'Pause' : 'Resume');
+        render();
+
+        if (state.running){
+            state.lastTick = performance.now();
+            startInterval();
+            announce('Resumed');
+        } else {
+            clearInterval(state.intervalId);
+            announce('Paused');
+        }
+    });
+
+    resetBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearInterval(state.intervalId);
+        gameScreen.classList.remove('is-active');
+        resultOverlay.classList.remove('is-active');
+        setupScreen.classList.add('is-active');
+    });
+
+    // ---------- End of game ----------
+    function endGame(winner){
+        state.running = false;
+        clearInterval(state.intervalId);
+        render();
+
+        const winnerLabel = winner === 'white' ? 'White' : 'Black';
+        resultText.textContent = `${winnerLabel} wins on time`;
+
+        announce(resultText.textContent);
+        resultOverlay.classList.add('is-active');
+    }
+
+    newGameBtn.addEventListener('click', () => {
+        resultOverlay.classList.remove('is-active');
+        gameScreen.classList.remove('is-active');
+        setupScreen.classList.add('is-active');
+    });
+})();
+</script>
+
+</body>
+</html>
